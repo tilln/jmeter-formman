@@ -12,10 +12,11 @@ This plugin makes JMeter behave a little more like a browser: form fields are au
 * Just correlate parameters that actually relate to user input.
 
 ![HTTP Form Manager](https://raw.githubusercontent.com/tilln/jmeter-formman/master/docs/before.png)
-![HTTP Form Manager](https://raw.githubusercontent.com/tilln/jmeter-formman/master/docs/after.png)
 
 HTTP form POST parameters are extracted at runtime from HTML responses and added to HTTP sampler parameters 
 (similar to JMeter's [HTML Link Parser](http://jmeter.apache.org/usermanual/component_reference.html#HTML_Link_Parser)).
+
+![HTTP Form Manager](https://raw.githubusercontent.com/tilln/jmeter-formman/master/docs/after.png)
 
 Installation
 ------------
