@@ -23,26 +23,33 @@ public class TestHTTPFormManager {
     protected final static String html =
     "<html>"+
     "   <body>"+
-    "       <form action=\"form\" method=\"POST\">"+
+    "       <form action=\"form\" method=\"POST\" name=\"1\">"+
     "           <input type=\"hidden\" name=\"hidden_input\"    value=\"hidden_value1\" />"+
     "           <input type=\"submit\" name=\"submit\"          value=\"submit_value1\" />"+
     "           <input type=\"submit\" name=\"submit\"          value=\"submit_value2\" />"+
     "       </form>"+
-    "       <form action=\"/base/form\" method=\"POST\">"+
+    "       <form action=\"/base/form\" method=\"POST\" name=\"2\">"+
     "           <input type=\"hidden\" name=\"hidden_input\"    value=\"hidden_value2\" />"+
     "           <input type=\"submit\" name=\"submit\"          value=\"submit_value2\" />"+
     "           <input type=\"submit\" name=\"submit\"          value=\"submit_value3\" />"+
     "           <input type=\"submit\" name=\"other-submit\"    value=\"submit_value4\" />"+
     "       </form>"+
-    "       <form action=\"//dummy.net/base/form\">"+
+    "       <form action=\"//dummy.net/base/form\" name=\"3\">"+ // GET is implicit
     "           <input type=\"hidden\" name=\"hidden_input\"    value=\"hidden_value3\" />"+
     "       </form>"+
-    "       <form method=\"post\">"+
+    "       <form method=\"post\" name=\"4\">"+
     "           <input type=\"hidden\" name=\"hidden_input\"    value=\"hidden_value4\" />"+
     "       </form>"+
-    "       <form action=\"/other-form\" method=\"POST\">"+
+    "       <form action=\"/base/overridden\" method=\"POST\" name=\"5\">"+
+    "           <input type=\"hidden\" name=\"hidden_input\"    value=\"hidden_value5\" />"+
+    "           <input type=\"submit\" name=\"submit\"          value=\"submit_value5\" formaction=\"/base/form\" />"+
+    "       </form>"+
+    "       <form action=\"/other-form\" method=\"POST\" name=\"6\">"+
     "           <input type=\"hidden\" name=\"hidden_input\"    value=\"hidden_value\" />"+
     "           <input type=\"text\"   name=\"text_input\"      value=\"text_value\" />"+
+    "       </form>"+
+    "       <form action=\"/base/form?queryparameter=value\" method=\"POST\" name=\"7\">"+
+    "           <input type=\"submit\" name=\"submit\"          value=\"submit_value7\" />"+
     "       </form>"+
     "   </body>"+
     "</html>";
@@ -66,6 +73,7 @@ public class TestHTTPFormManager {
         
         instance = new HTTPFormManager();
         instance.setThreadContext(context);
+        instance.setContentType("text/html");
     }
 
     @Test
@@ -82,11 +90,21 @@ public class TestHTTPFormManager {
     @Test
     public void testFormIsSelectedByMethodAndURL() throws Exception {
         instance.log.info("testFormIsSelectedByMethodAndURL");
-        sampler.setMethod("GET");
+        sampler.setMethod("GET"); // matches form 3
         instance.process();
         Map<String, String> args = sampler.getArguments().getArgumentsAsMap();
         assertThat(args.size(), is(1));
         assertThat(args, IsMapContaining.hasEntry("hidden_input", "hidden_value3"));
+    }
+
+    @Test
+    public void testFormIsSelectedByMethodAndURLWithQueryParameters() throws Exception {
+        instance.log.info("testFormIsSelectedByMethodAndURLWithQueryParameters");
+        sampler.setPath("/base/form?queryparameter=value");
+        instance.process();
+        Map<String, String> args = sampler.getArguments().getArgumentsAsMap();
+        assertThat(args.size(), is(1));
+        assertThat(args, IsMapContaining.hasEntry("submit", "submit_value7"));
     }
 
     @Test

@@ -139,3 +139,5 @@ Limitations
 * Form parameters that are not part of the previous HTML response, or are added or modified by JavaScript, need to be correlated manually as usual.
 
 * The plugin has no effect if a form cannot be determined unambiguously (i.e. multiple forms with identical URLs and submit elements).
+
+* Button attributes formaction, formmethod, form are not supported.
