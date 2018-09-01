@@ -132,6 +132,15 @@ If there is no match, nothing will be added and the parameter list will not be m
 
 In case a form has more than one submit element, none is added by the plugin but the user is expected to add one to the parameter list.
 
+Configuration
+-------------
+
+![Configuration](https://raw.githubusercontent.com/tilln/jmeter-formman/master/docs/config.png)
+
+* "Clear form data each iteration?": Whether to discard any stored form input data when starting a new thread iteration (default: true).
+
+* "Content-Type": Ignore sampler responses that don't match this Content-Type (default: text/html).
+
 
 Limitations
 -----------
