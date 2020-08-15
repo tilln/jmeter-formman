@@ -8,7 +8,7 @@ public class HTTPFormManagerBeanInfo extends BeanInfoSupport {
     public HTTPFormManagerBeanInfo() {
         super(HTTPFormManager.class);
 
-        createPropertyGroup("Options", new String[]{ "clearEachIteration" });
+        createPropertyGroup("Options", new String[]{ "clearEachIteration", "ignoreUrlParameters" });
         createPropertyGroup("Response", new String[]{ "contentType" });
         PropertyDescriptor p;
 
@@ -19,5 +19,9 @@ public class HTTPFormManagerBeanInfo extends BeanInfoSupport {
         p = property("contentType");
         p.setValue(NOT_UNDEFINED, Boolean.TRUE);
         p.setValue(DEFAULT, "text/html");
+
+        p = property("ignoreUrlParameters");
+        p.setValue(NOT_UNDEFINED, Boolean.TRUE);
+        p.setValue(DEFAULT, false);
     }
 }

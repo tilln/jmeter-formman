@@ -108,6 +108,18 @@ public class TestHTTPFormManager {
     }
 
     @Test
+    public void testFormIsSelectedByMethodAndURLWithoutQueryParameters() throws Exception {
+        instance.log.info("testFormIsSelectedByMethodAndURLWithoutQueryParameters");
+        instance.setIgnoreUrlParameters(true);
+        sampler.setPath("/other-form?queryparameter=shouldBeIgnored");
+        instance.process();
+        Map<String, String> args = sampler.getArguments().getArgumentsAsMap();
+        assertThat(args.size(), is(2));
+        assertThat(args, IsMapContaining.hasEntry("hidden_input", "hidden_value"));
+        assertThat(args, IsMapContaining.hasEntry("text_input", "text_value"));
+    }
+
+    @Test
     public void testNoModificationToExplicitValue() throws Exception {
         instance.log.info("testNoModificationToExplicitValue");
         sampler.setPath("/other-form");

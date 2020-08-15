@@ -31,6 +31,7 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
 
     private String contentType;
     private boolean clearEachIteration;
+    private boolean ignoreUrlParameters;
 
     /** Both parsing responses as well as modifying parameters happens in the
      *  Preprocessor method (so there is no need for a separate Postprocessor).
@@ -98,7 +99,7 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
             Connection.Request request = form.submit().request();
             // TODO keep forms with buttons that override these via formaction/formmethod attributes
             return !method.equals(request.method().toString())
-                || !url.equals(request.url().toString());
+                || !equalUrls(url, request.url().toString());
         });
         if (forms.isEmpty()) {
             log.debug("No form found matching sampler method and URL: "+method+" "+url);
@@ -148,6 +149,14 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
         }
     }
 
+    protected boolean equalUrls(String samplerUrl, String formUrl) {
+        if (isIgnoreUrlParameters()) {
+            samplerUrl = samplerUrl.replaceFirst("\\?.*", "");
+            formUrl = formUrl.replaceFirst("\\?.*", "");
+        }
+        return samplerUrl.equals(formUrl);
+    }
+
     @Override
     public void testIterationStart(LoopIterationEvent event) {
         log.debug("New thread iteration detected");
@@ -169,5 +178,13 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
 
     public void setClearEachIteration(boolean clearEachIteration) {
         this.clearEachIteration = clearEachIteration;
+    }
+
+    public boolean isIgnoreUrlParameters() {
+        return ignoreUrlParameters;
+    }
+
+    public void setIgnoreUrlParameters(boolean ignoreUrlParameters) {
+        this.ignoreUrlParameters = ignoreUrlParameters;
     }
 }
