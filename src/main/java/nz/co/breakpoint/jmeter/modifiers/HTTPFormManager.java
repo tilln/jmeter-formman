@@ -1,7 +1,6 @@
 package nz.co.breakpoint.jmeter.modifiers;
 
 import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
@@ -45,7 +44,7 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
 
         // First, irrespective of current sampler, deal with the last result.
         // Ignore irrelevant content types, but only store HTML results for the current sampler
-        // (or any subsequent sampler as there could be non-HTTP samplers inbetween).
+        // (or any subsequent sampler as there could be non-HTTP samplers in between).
         SampleResult prev = context.getPreviousResult(); // should only be null at the very beginning
 
         if (prev != null && prev.getContentType() != null && prev.getContentType().startsWith(contentType)) {
@@ -92,7 +91,8 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
 
         // Of all the forms in the parsed HTML document, keep only the ones
         // with method and URL matching the current sampler
-        List<FormElement> forms = document.select("form").forms();
+        //noinspection unchecked,rawtypes
+        List<FormElement> forms = (List)document.select("form");
 
         forms.removeIf(form -> {
             Connection.Request request = form.submit().request();
@@ -133,7 +133,7 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
             log.debug("No match found. No sampler modification.");
             return;
         }
-        log.debug("Form match found: "+form);
+        log.debug("Form match found: id=\""+form.attr("id")+"\", action="+form.attr("action"));
 
         if (form.select("[type=submit]").size() > 1) {
             log.debug("Form has more than one submit element. Excluding all, assuming sampler has submit element.");
