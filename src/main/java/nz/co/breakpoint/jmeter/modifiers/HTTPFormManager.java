@@ -1,8 +1,10 @@
 package nz.co.breakpoint.jmeter.modifiers;
 
 import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.processor.PreProcessor;
 import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
@@ -12,6 +14,7 @@ import org.apache.jmeter.testbeans.TestBean;
 import org.apache.jmeter.testelement.AbstractTestElement;
 import org.apache.jmeter.testelement.TestIterationListener;
 import org.apache.jmeter.threads.JMeterContext;
+import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.logging.LoggingManager;
 import org.apache.log.Logger;
 import org.jsoup.Connection;
@@ -19,6 +22,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.FormElement;
+import org.jsoup.select.Elements;
 
 public class HTTPFormManager extends AbstractTestElement implements PreProcessor, TestBean, TestIterationListener {
 
@@ -29,9 +33,10 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
     protected SampleResult lastHtmlResult;
     protected boolean isNextIteration = false;
 
-    private String contentType;
-    private boolean clearEachIteration;
-    private boolean ignoreUrlParameters;
+    protected String contentType = JMeterUtils.getPropDefault("jmeter.formman.contentType", "text/html");
+    private boolean clearEachIteration, copyParameters, copyUrl;
+    private boolean matchSamplerUrl, matchSamplerParameters, matchSubmit;
+    private String matchCssSelector;
 
     /** Both parsing responses as well as modifying parameters happens in the
      *  Preprocessor method (so there is no need for a separate Postprocessor).
@@ -76,85 +81,107 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
             log.debug("No stored form data available, skipping");
             return;
         }
-        // Now that we've got a previous HTML result and an HTTP form sampler
-        // we get the HTTP verb/method and URL for comparing with the form's ones
-        Map<String, String> args = sampler.getArguments().getArgumentsAsMap();
-        final String method = sampler.getMethod();
-        final String url;
-        try {
-            url = sampler.getUrl().toString();
-        }
-        catch (MalformedURLException e) {
-            log.warn("Cannot process sampler! ", e);
-            return;
-        }
+        // Now that we've got a previous HTML result we can parse it and find a form
         Document document = Jsoup.parse(lastHtmlResult.getResponseDataAsString(), lastHtmlResult.getURL().toString());
+        FormElement form = findForm(document, sampler);
+        modifySampler(sampler, form);
+    }
 
-        // Of all the forms in the parsed HTML document, keep only the ones
-        // with method and URL matching the current sampler
-        //noinspection unchecked,rawtypes
+    protected FormElement findForm(Document document, HTTPSamplerBase sampler) {
+        // Of all the forms in the parsed HTML document, keep only the matching ones
+        //noinspection unchecked,rawtypes - as we know that jsoup return FormElements (cannot use forms() due to jsoup bug #1384)
         List<FormElement> forms = (List)document.select("form");
-
-        forms.removeIf(form -> {
-            Connection.Request request = form.submit().request();
-            // TODO keep forms with buttons that override these via formaction/formmethod attributes
-            return !method.equals(request.method().toString())
-                || !equalUrls(url, request.url().toString());
-        });
-        if (forms.isEmpty()) {
-            log.debug("No form found matching sampler method and URL: "+method+" "+url);
-            return;
-        }
-
-        // As there could be more than one form candidate left with the same URL and method,
-        // we're trying to find a form with a submit button that matches a given sampler argument
-        FormElement form = null;
+        forms.removeIf(form -> !isMatch(form, sampler));
 
         if (forms.size() == 1) {
-            form = forms.get(0);
-        } else {
-            log.debug("More than one form matches sampler URL, trying to match submit button...");
-            for (FormElement candidate : forms) {
-                for (Element submit : candidate.select("[type=submit]")) { // TODO look for buttons in entire doc (with form attributes)
-                    String submitName = submit.attr("name");
-                    String submitValue = submit.attr("value");
-                    if (submitValue != null && submitValue.equals(args.get(submitName))) {
-                        log.debug("Submit matches a sampler argument name/value: "+submit);
-                        if (form == null) {
-                            form = candidate;
-                            break; // next form
-                        }
-                        log.warn("Multiple forms match "+method+" "+url+". No sampler modification.");
-                        return;
-                    }
+            log.debug("Unique match found");
+            return forms.get(0);
+        }
+
+        log.debug((forms.isEmpty() ? "No" : "More than one") + " form match found. No sampler modification.");
+        return null;
+    }
+
+    protected boolean isMatch(FormElement form, HTTPSamplerBase sampler) {
+        log.debug("Trying to match form: "+form.attributes());
+        if (isMatchSamplerUrl()) {
+            Connection.Request request = form.submit().request();
+            // TODO forms with buttons that override these via formaction/formmethod attributes
+            String formMethod = request.method().toString();
+            String formUrl = request.url().toString();
+            String samplerMethod = sampler.getMethod();
+            String samplerUrl;
+            try {
+                samplerUrl = sampler.getUrl().toString();
+            } catch (MalformedURLException e) {
+                log.warn("Cannot process sampler! ", e);
+                return false;
+            }
+            if (!samplerMethod.equals(formMethod) || !samplerUrl.equals(formUrl)) {
+                log.debug("Form does not match sampler URL or method");
+                return false;
+            }
+        }
+        final Map<String, String> samplerParameters = sampler.getArguments().getArgumentsAsMap();
+        if (isMatchSamplerParameters()) {
+            List<Connection.KeyVal> formParams = form.formData();
+            Set<String> samplerParams = samplerParameters.keySet();
+            if (!formParams.containsAll(samplerParams)) {
+                log.debug("Sampler parameters do not match");
+                return false;
+            }
+        }
+        if (isMatchSubmit()) {
+            boolean submitMatch = false;
+            for (Element submit : form.select("[type=submit]")) { // TODO look for buttons in entire doc (with form attributes)
+                String submitName = submit.attr("name");
+                String submitValue = submit.attr("value");
+                if (submitValue != null && submitValue.equals(samplerParameters.get(submitName))) {
+                    log.debug("Submit matches a sampler argument name/value: "+submit);
+                    submitMatch = true;
+                }
+            }
+            if (!submitMatch) {
+                log.debug("Sampler parameters do not match form submit element");
+                return false;
+            }
+        }
+        String selector = getMatchCssSelector();
+        if (selector != null && !selector.isEmpty()) {
+            final Elements el = form.select(selector);
+            if (el == null || el.isEmpty()) {
+                log.debug("Form does not match CSS selector");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected void modifySampler(HTTPSamplerBase sampler, FormElement form) {
+        if (form == null || sampler == null) return;
+
+        if (isCopyUrl()) {
+            URL url = form.submit().request().url();
+            String path = url.getPath(), query = url.getQuery();
+            if (query != null && !query.isEmpty()) path += query;
+            log.debug("Copying form URL path "+path);
+            sampler.setPath(path);
+        }
+        if (isCopyParameters()) {
+            // Make sure not to copy multiple submit elements
+            if (form.select("[type=submit]").size() > 1) {
+                log.debug("Form has more than one submit element. Excluding all, assuming sampler has submit element.");
+                form.elements().removeIf(e -> "submit".equalsIgnoreCase(e.attr("type")));
+            }
+            final Map<String, String> samplerParameters = sampler.getArguments().getArgumentsAsMap();
+            // Add only form parameters that are not already defined by the user
+            for (Connection.KeyVal formParam : form.formData()) {
+                if (!samplerParameters.containsKey(formParam.key())) {
+                    log.debug("Adding "+formParam);
+                    sampler.addArgument(formParam.key(), formParam.value());
                 }
             }
         }
-        if (form == null) {
-            log.debug("No match found. No sampler modification.");
-            return;
-        }
-        log.debug("Form match found: id=\""+form.attr("id")+"\", action="+form.attr("action"));
-
-        if (form.select("[type=submit]").size() > 1) {
-            log.debug("Form has more than one submit element. Excluding all, assuming sampler has submit element.");
-            form.elements().removeIf(e -> "submit".equalsIgnoreCase(e.attr("type")));
-        }
-
-        for (Connection.KeyVal param : form.formData()) {
-            if (!args.containsKey(param.key())) {
-                log.debug("Adding "+param);
-                sampler.addArgument(param.key(), param.value());
-            }
-        }
-    }
-
-    protected boolean equalUrls(String samplerUrl, String formUrl) {
-        if (isIgnoreUrlParameters()) {
-            samplerUrl = samplerUrl.replaceFirst("\\?.*", "");
-            formUrl = formUrl.replaceFirst("\\?.*", "");
-        }
-        return samplerUrl.equals(formUrl);
     }
 
     @Override
@@ -164,14 +191,6 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
     }
 
     // Accessors
-    public String getContentType() {
-        return contentType;
-    }
-
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
-
     public boolean isClearEachIteration() {
         return clearEachIteration;
     }
@@ -180,11 +199,51 @@ public class HTTPFormManager extends AbstractTestElement implements PreProcessor
         this.clearEachIteration = clearEachIteration;
     }
 
-    public boolean isIgnoreUrlParameters() {
-        return ignoreUrlParameters;
+    public boolean isMatchSamplerUrl() {
+        return matchSamplerUrl;
     }
 
-    public void setIgnoreUrlParameters(boolean ignoreUrlParameters) {
-        this.ignoreUrlParameters = ignoreUrlParameters;
+    public void setMatchSamplerUrl(boolean matchSamplerUrl) {
+        this.matchSamplerUrl = matchSamplerUrl;
+    }
+
+    public boolean isMatchSamplerParameters() {
+        return matchSamplerParameters;
+    }
+
+    public void setMatchSamplerParameters(boolean matchSamplerParameters) {
+        this.matchSamplerParameters = matchSamplerParameters;
+    }
+
+    public boolean isMatchSubmit() {
+        return matchSubmit;
+    }
+
+    public void setMatchSubmit(boolean matchSubmit) {
+        this.matchSubmit = matchSubmit;
+    }
+
+    public String getMatchCssSelector() {
+        return matchCssSelector;
+    }
+
+    public void setMatchCssSelector(String matchCssSelector) {
+        this.matchCssSelector = matchCssSelector;
+    }
+
+    public boolean isCopyParameters() {
+        return copyParameters;
+    }
+
+    public void setCopyParameters(boolean copyParameters) {
+        this.copyParameters = copyParameters;
+    }
+
+    public boolean isCopyUrl() {
+        return copyUrl;
+    }
+
+    public void setCopyUrl(boolean copyUrl) {
+        this.copyUrl = copyUrl;
     }
 }

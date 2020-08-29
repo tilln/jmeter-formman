@@ -12,6 +12,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 public class TestHTTPFormManager {
@@ -66,14 +67,15 @@ public class TestHTTPFormManager {
         prev.setURL(new URL("http://dummy.net/base/form"));
         prev.setContentType("text/html");
         prev.setResponseData(html, "UTF-8");
-         
+
         context = JMeterContextService.getContext();
         context.setCurrentSampler(sampler);
         context.setPreviousResult(prev);
         
         instance = new HTTPFormManager();
         instance.setThreadContext(context);
-        instance.setContentType("text/html");
+        instance.setCopyParameters(true);
+        instance.setMatchSamplerUrl(true);
     }
 
     @Test
@@ -108,18 +110,6 @@ public class TestHTTPFormManager {
     }
 
     @Test
-    public void testFormIsSelectedByMethodAndURLWithoutQueryParameters() throws Exception {
-        instance.log.info("testFormIsSelectedByMethodAndURLWithoutQueryParameters");
-        instance.setIgnoreUrlParameters(true);
-        sampler.setPath("/other-form?queryparameter=shouldBeIgnored");
-        instance.process();
-        Map<String, String> args = sampler.getArguments().getArgumentsAsMap();
-        assertThat(args.size(), is(2));
-        assertThat(args, IsMapContaining.hasEntry("hidden_input", "hidden_value"));
-        assertThat(args, IsMapContaining.hasEntry("text_input", "text_value"));
-    }
-
-    @Test
     public void testNoModificationToExplicitValue() throws Exception {
         instance.log.info("testNoModificationToExplicitValue");
         sampler.setPath("/other-form");
@@ -134,12 +124,36 @@ public class TestHTTPFormManager {
     @Test
     public void testFormIsSelectedByExplicitSubmit() throws Exception {
         instance.log.info("testFormIsSelectedByExplicitSubmit");
+        instance.setMatchSubmit(true);
         sampler.addArgument("submit", "submit_value3");
         instance.process();
         Map<String, String> args = sampler.getArguments().getArgumentsAsMap();
         assertThat(args.size(), is(2));
         assertThat(args, IsMapContaining.hasEntry("submit", "submit_value3"));
         assertThat(args, IsMapContaining.hasEntry("hidden_input", "hidden_value2"));
+    }
+
+    @Test
+    public void testFormIsSelectedByExplicitSelector() throws Exception {
+        instance.log.info("testFormIsSelectedByExplicitSelector");
+        instance.setMatchSamplerUrl(false);
+        instance.setMatchCssSelector("form[name=6]");
+        instance.process();
+        Map<String, String> args = sampler.getArguments().getArgumentsAsMap();
+        assertThat(args.size(), is(2));
+        assertThat(args, IsMapContaining.hasEntry("hidden_input", "hidden_value"));
+        assertThat(args, IsMapContaining.hasEntry("text_input", "text_value"));
+    }
+
+    @Test
+    public void testUrlIsModified() throws Exception {
+        instance.log.info("testUrlIsModified");
+        instance.setMatchSamplerUrl(false);
+        instance.setMatchCssSelector("form[name=6]");
+        instance.setCopyUrl(true);
+        instance.process();
+        String samplerUrl = sampler.getUrl().toString();
+        assertEquals(samplerUrl, "http://dummy.net/other-form");
     }
 
     @Test
