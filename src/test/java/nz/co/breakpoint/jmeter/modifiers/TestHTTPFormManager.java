@@ -124,6 +124,7 @@ public class TestHTTPFormManager {
     @Test
     public void testFormIsSelectedByExplicitSubmit() throws Exception {
         instance.log.info("testFormIsSelectedByExplicitSubmit");
+        instance.setMatchSamplerUrl(false);
         instance.setMatchSubmit(true);
         sampler.addArgument("submit", "submit_value3");
         instance.process();
