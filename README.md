@@ -20,7 +20,7 @@ HTTP form parameters are extracted at runtime from HTML responses and added to H
 
 Installation
 ------------
-<!--
+
 ### Via [PluginsManager](https://jmeter-plugins.org/wiki/PluginsManager/)
 
 Under tab "Available Plugins", select "HTTP Form Manager", then click "Apply Changes and Restart JMeter".
@@ -28,7 +28,7 @@ Under tab "Available Plugins", select "HTTP Form Manager", then click "Apply Cha
 ### Via Package from [JMeter-Plugins.org](https://jmeter-plugins.org/)
 
 Extract the [zip package](https://jmeter-plugins.org/files/packages/tilln-formman-1.0.zip) into JMeter's lib directory, then restart JMeter.
--->
+
 
 ### Via Manual Download
 
